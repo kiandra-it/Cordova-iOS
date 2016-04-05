@@ -8,58 +8,196 @@
 
 #import "IsourceAnnotationProvider.h"
 
+static NSString *const XmlDeclaration = @"<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
+
 @interface IsourceAnnotationProvider()
-    @property (nonatomic) NSArray* annotationFilePaths;
-    @property (nonatomic, copy) NSMutableArray *annotations;
+    @property (nonatomic) long documentId;
+
+    @property (nonatomic, copy) NSMutableArray<__kindof PSPDFAnnotation *>* allAnnotations;
+    @property (nonatomic) NSDictionary* annotationFileData;
+
+    @property (nonatomic, copy) NSMutableArray<__kindof PSPDFAnnotation *>* myAnnotations;
+    @property (nonatomic) NSString* myAnnotationFilePath;
+
+    @property (nonatomic, copy) NSMutableArray<__kindof PSPDFAnnotation *>* otherAnnotations;
+    @property (nonatomic) NSMutableArray* otherAnnotationFilePaths;
+
+    @property (nonatomic) NSMutableArray<__kindof PSPDFAnnotation *>* allAnnotationFilePaths;
+
     @property (nonatomic) WKWebView* webView;
 
-    // @property (nonatomic) int documentId;
-    // @property (nonatomic, copy) NSManagedObjectContext *managedContext;
-    // @property (nonatomic, copy) NSString* annotationsUrl;
-    // @property (nonatomic, copy) NSString* postUrl;
 @end
 
 @implementation IsourceAnnotationProvider
-{
-    // BOOL _ignoreAnnotationChanges;   // ?: Not sure yet
-    // BOOL _hasInitialised;            // ?: Not sure yet
-}
+{}
 
-- (instancetype)initWithDocumentProvider:(PSPDFDocumentProvider *)documentProvider with:(NSArray *) annotationFilePaths and:(WKWebView *)webView
+- (instancetype)initWithDocumentProvider:(PSPDFDocumentProvider *) documentProvider
+                  withAnnotationFileData:annotationFileData
+                          withDocumentId:(long)documentId
+                                     and:(WKWebView *) webView
 {
     if ((self = [super initWithDocumentProvider:documentProvider])) {
+        _documentId = documentId;
+        _annotationFileData = annotationFileData;
+        
+        _allAnnotations = [NSMutableArray new];
 
-        // _documentId = documentId;
-        _annotationFilePaths = annotationFilePaths;
-        _annotations = [NSMutableArray new];
+        NSString* myAnnotationFilePath = [annotationFileData objectForKey: @"annotationFilePath"];
+        _myAnnotationFilePath = ![myAnnotationFilePath isEqualToString: @""] ? myAnnotationFilePath : NULL;
+        _myAnnotations = [NSMutableArray new];
+        
+        _otherAnnotations = [NSMutableArray new];
+        _otherAnnotationFilePaths = [NSMutableArray new];
+
+        for (NSDictionary* otherAnnotationFilePath in [annotationFileData objectForKey: @"otherUsersAnnotations"]){
+            [_otherAnnotationFilePaths addObject: [otherAnnotationFilePath objectForKey: @"annotationFilePath"]];
+        }
+        
         _webView = webView;
 
-        // _managedContext = [NSManagedObjectContext MR_defaultContext];
-
-        // Should be passed in
-        //_annotationsUrl = [UrlConstants getAnnotationsForFileId:_documentId];
-        //_postUrl = [UrlConstants getPostAnnotationForFileId:_documentId];
-
-        [self setupAnnotationStore]; // ?: Do we need to worry about this yet?
+        // Load in the annotations off of disk
+        [self initalizeAnnotations:_annotationFileData
+                  myAnnotationPath:_myAnnotationFilePath
+          andOtherAnnotationsPaths:_otherAnnotationFilePaths
+               toMyAnnotationStore:_myAnnotations
+            toOtherAnnotationStore:_otherAnnotations
+                     toGlobalStore:_allAnnotations];
     }
 
     return self;
 }
 
+/* HOOK: Called when an annotation has been added */
+- (NSArray<__kindof PSPDFAnnotation *> *) addAnnotations:(NSArray<__kindof PSPDFAnnotation *> *)annotations options:(NSDictionary<NSString *, id> *)options {
+    if (annotations.count == 0) return annotations;
 
+    NSLog(@"addAnnotations called");
+    
+    // Update our annotations store to reflect new changes
+    [_allAnnotations addObjectsFromArray:annotations];
+    [_myAnnotations addObjectsFromArray:annotations];
+    
+    [self persistAnnotations: _myAnnotations];
+    
+    return [super addAnnotations:annotations options:options];
+}
 
--(NSArray *)parseAnnotations:(NSString *)filePath {
+/* HOOK: Called when an annotation has been removed */
+- (NSArray<__kindof PSPDFAnnotation *> *) removeAnnotations:(NSArray<__kindof PSPDFAnnotation *> *)annotations options:(NSDictionary<NSString *, id> *)options {
+    if (annotations.count == 0) return annotations;
+
+    NSLog(@"removeAnnotations called");
+    
+    [_allAnnotations enumerateObjectsWithOptions:NSEnumerationReverse usingBlock:^(PSPDFAnnotation* annotation, NSUInteger index, BOOL* stop) {
+        if (annotations[0] == annotation) // TODO: Check if there can be multiple annotations
+            [_allAnnotations removeObjectAtIndex:index];
+    }];
+    
+    [_myAnnotations enumerateObjectsWithOptions:NSEnumerationReverse usingBlock:^(PSPDFAnnotation* annotation, NSUInteger index, BOOL* stop) {
+        if (annotations[0] == annotation) // TODO: Check if there can be multiple annotations
+            [_myAnnotations removeObjectAtIndex:index];
+    }];
+    
+    [self persistAnnotations: _myAnnotations];
+    
+    return [super removeAnnotations:annotations options:options];
+}
+
+/* 
+ HOOK: Called when a fine gained change happens to the annotations (typically called when addAnnotations isn't)
+ NOTE: Annotations in the collections (_myAnnotation and _allAnnotations) are updated automatically by PSPDFKit to reflect the changes to those annotations
+        and as a result they can just be parsed to get an up to date FDF.
+ */
+- (void) didChangeAnnotation:(PSPDFAnnotation *)annotation keyPaths:(NSArray<NSString *> *)keyPaths options:(nullable NSDictionary<NSString *, id> *)options {
+    NSLog(@"didChangeAnnotation called");
+    
+    [self persistAnnotations: _myAnnotations];
+}
+
+// Turns the collection of annotations into FDF, and sends that off to the JavaScript to be persisted
+- (void) persistAnnotations:(NSMutableArray *)myAnnotations {
+    // Lets extract the FDF as a string
+    PSPDFXFDFWriter *writer = [PSPDFXFDFWriter new];
+    NSOutputStream *stream = [[NSOutputStream alloc] initToMemory]; // Specifies we want it to buffer otuput to memory
+    
+    NSError *error;
+    if(![writer writeAnnotations:myAnnotations toOutputStream:stream documentProvider:self.documentProvider error:&error]){
+        NSLog(@"Failed to write XFDF file: %@", error.localizedDescription);
+    }
+    
+    NSData *fdfData = [stream propertyForKey:NSStreamDataWrittenToMemoryStreamKey];
+    [stream close];
+    
+    NSString* newFdfXML = [[NSString alloc] initWithData:fdfData encoding:NSUTF8StringEncoding];
+    
+    // String contains new lines which need to be stripped to be passed as an argument
+    newFdfXML = [newFdfXML stringByReplacingOccurrencesOfString:@"\n" withString:@""];
+    
+    NSString* script = [NSString stringWithFormat:@"window.PSPDFKitEvents.persistAnnotations(%ld, '%@')", _documentId, newFdfXML];
+    
+    [self stringByEvaluatingJavaScriptFromString: script];
+}
+
+// Extract annotations from disk, initialize the stores, then draw them
+- (BOOL)initalizeAnnotations:(NSDictionary *)annotationFileData
+            myAnnotationPath:(NSString *)myAnnotationFilePath
+    andOtherAnnotationsPaths:(NSArray *)otherAnnotationFilePaths
+         toMyAnnotationStore:(NSMutableArray<__kindof PSPDFAnnotation *> *)myAnnotationStore
+      toOtherAnnotationStore:(NSMutableArray<__kindof PSPDFAnnotation *> *)otherAnnotationsStore
+               toGlobalStore:(NSMutableArray<__kindof PSPDFAnnotation *> *)allAnnotationsStore
+{
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [allAnnotationsStore removeAllObjects];
+        
+        // Extract out the annotations that I have created from the disk
+        if (myAnnotationFilePath != NULL) {
+           [myAnnotationStore addObjectsFromArray: [self parseAnnotations: myAnnotationFilePath]];
+            
+            for (PSPDFAnnotation *myAnnotation in myAnnotationStore){
+                myAnnotation.user = @"You";
+            }
+            
+            NSLog(@"Added: %lu annotations from %@", (unsigned long)myAnnotationStore.count, myAnnotationFilePath);
+        }
+        
+        // Extra out all the other annotations that other people have made from the disk
+        for (NSDictionary* otherUsersAnnotationData in [annotationFileData objectForKey: @"otherUsersAnnotations"]) {
+            NSArray* tempAnnotationsStore = [self parseAnnotations: [otherUsersAnnotationData objectForKey: @"annotationFilePath"]];
+            
+            for (PSPDFAnnotation *otherAnnotation in tempAnnotationsStore){
+                otherAnnotation.user = [otherUsersAnnotationData objectForKey: @"fullName"];
+                otherAnnotation.editable = NO;  // Stop other people from editing annotations that arent theirs.
+            }
+            
+            [otherAnnotationsStore addObjectsFromArray:tempAnnotationsStore];
+            
+            NSLog(@"Added: %lu annotations from %@", (unsigned long)tempAnnotationsStore.count, [otherUsersAnnotationData objectForKey: @"annotationFilePath"]);
+        }
+        
+        // Update the global store so that it can be shown
+        [allAnnotationsStore addObjectsFromArray:myAnnotationStore];
+        [allAnnotationsStore addObjectsFromArray:otherAnnotationsStore];
+        
+        [super addAnnotations:allAnnotationsStore options:nil]; // After parsing the annotations we must pass them through to be added to the document
+    });
+
+    return YES;
+}
+
+// Parse the file at filePath, then return those annotations
+- (NSArray<__kindof PSPDFAnnotation *> *)parseAnnotations:(NSString *)filePath {
     if(self.documentProvider == nil || self.documentProvider.document == nil) {
         return @[];
     }
-
+    
     NSInputStream *stream = [NSInputStream inputStreamWithFileAtPath:filePath];
-
+    
+    // Parses the documentProvider in, must use this to apply annotations
     PSPDFXFDFParser *parser = [[PSPDFXFDFParser alloc] initWithInputStream:stream documentProvider:self.documentProvider];
-
+    
     NSError *error = nil;
     NSArray *annotations;
-
+    
     @try {
         annotations = [parser parseWithError:&error]; // Completing this causes PSPDFKit to launch
     }
@@ -69,40 +207,13 @@
     @finally{
         [stream close];
     }
-
+    
     return annotations;
 }
 
-- (void)setAnnotationsFromStorage{
-    [_annotations removeAllObjects];
-
-    if (_annotationFilePaths.count > 0) {
-        NSArray *myAnnotations = [self parseAnnotations:  _annotationFilePaths[0]];
-
-        // Associate the annotations that we have gotten from out mine.fdf to ourselves
-        for (PSPDFAnnotation *annotation in myAnnotations) {
-            annotation.user = @"You";
-        }
-
-        for (int i = 1; i < _annotationFilePaths.count; ++i) {
-            [_annotations addObjectsFromArray: [self parseAnnotations:  _annotationFilePaths[i]] ];
-        }
-
-        // Lets add the annotations to the global annotations store
-        [_annotations addObjectsFromArray:myAnnotations];
-
-
-        [super addAnnotations:_annotations options:nil];           // We apply the annotations to the base class (PSPDFContainerAnnotationProvider)
-
-        NSLog(@"setAnnotationsFromStorage: Loaded annotation data");
-    }
-    else {
-        NSLog(@"setAnnotationsFromStorage: No annotation data");
-    }
-
-}
-
+// TODO: Externalize this into a file
 - (NSString *)stringByEvaluatingJavaScriptFromString:(NSString *)script {
+    
     __block NSString *result;
     if ([_webView isKindOfClass:UIWebView.class]) {
         result = [(UIWebView *)_webView stringByEvaluatingJavaScriptFromString:script];
@@ -111,7 +222,7 @@
         [((WKWebView *)_webView) evaluateJavaScript:script completionHandler:^(id resultID, NSError *error) {
             result = [resultID description];
         }];
-
+        
         // Ugly way to convert the async call into a sync call.
         // Since WKWebView calls back on the main thread we can't block.
         while (dispatch_semaphore_wait(semaphore, DISPATCH_TIME_NOW)) {
@@ -119,73 +230,6 @@
         }
     }
     return result;
-}
-
-- (NSArray *)addAnnotations:(NSArray *)annotations options:(NSDictionary *)options {
-    if (annotations.count == 0) return annotations;
-
-    NSLog(@"addAnnotations Called!");
-
-    [self stringByEvaluatingJavaScriptFromString: @"window.PSPDFKitEvents.logger('TEXT')"];
-
-    return [super addAnnotations:annotations options:options];
-
-    /*
-     for (PSPDFAnnotation *annotation in annotations) {
-     annotation.user = @"You";
-     }
-
-     //Parse the new annotations to an fdf xml.
-     PSPDFXFDFWriter *writer = [PSPDFXFDFWriter new];
-     NSOutputStream *stream = [[NSOutputStream alloc] initToMemory];
-
-     NSError *error;
-     if(![writer writeAnnotations:annotations toOutputStream:stream documentProvider:self.documentProvider error:&error]){
-     NSLog(@"Failed to write XFDF file: %@", error.localizedDescription);
-     }
-
-     NSData *data = [stream propertyForKey:NSStreamDataWrittenToMemoryStreamKey];
-     NSDictionary *addedAnnotationsXml = [NSDictionary dictionaryWithXMLData:data];
-     [stream close];
-
-     //If we currently have no annotations, just simply store and push the new ones.
-     NSDictionary *currentAnnotationSet = [NSDictionary dictionaryWithXMLFile:_annotationStore.myFileUrl.path];
-
-     if (currentAnnotationSet == nil) {
-     [self storeAnnotationFdf: [XmlDeclaration stringByAppendingString: addedAnnotationsXml.XMLString] fileUrl:_annotationStore.myFileUrl];
-     [self sendAnnotationsToServer];
-     [Intercom logEventWithName:@"annotation-created"];
-     return [super addAnnotations:annotations options:options];
-     }
-
-     //Stringify the currently stored annotations.
-     NSString *currentAnnotations = [[currentAnnotationSet dictionaryValueForKeyPath:@"annots"] innerXML] ? : @"";
-
-     //Append the new annotations.
-     NSString *addedAnnotations = [[addedAnnotationsXml valueForKeyPath:@"annots"] innerXML];
-     currentAnnotations = [currentAnnotations stringByAppendingString:addedAnnotations];
-
-     NSDictionary *joinedAnnotations = [NSDictionary dictionaryWithXMLString:[NSString stringWithFormat:@"<root>%@</root>", currentAnnotations]];
-
-     [currentAnnotationSet setValue:joinedAnnotations forKeyPath:@"annots"];
-
-     //Save to storage.
-     [self storeAnnotationFdf: [XmlDeclaration stringByAppendingString: [currentAnnotationSet XMLString]] fileUrl:_annotationStore.myFileUrl];
-
-     NSArray *result = [super addAnnotations:annotations options:options];
-
-     [self sendAnnotationsToServer];
-     [Intercom logEventWithName:@"annotation-created"];
-     */
-}
-
-- (BOOL)setupAnnotationStore {
-
-    dispatch_async(dispatch_get_main_queue(), ^{
-       [self setAnnotationsFromStorage];
-    });
-
-    return YES;
 }
 
 @end

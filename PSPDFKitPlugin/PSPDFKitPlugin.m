@@ -929,30 +929,28 @@
 - (void)present:(CDVInvokedUrlCommand *)command {
 
     // SET UP THE DOCUMENT
-    NSString* path = [command argumentAtIndex:0];
+    NSString *path = [command argumentAtIndex:0];
     NSURL *url = [self pdfFileURLWithPath:path];
 
     NSDictionary *options = [command argumentAtIndex:1] ?: [command argumentAtIndex:2];
     NSMutableDictionary *newOptions = [self.defaultOptions mutableCopy];
     [newOptions addEntriesFromDictionary:options];
 
-
-    NSArray* annotationFilePaths = [options objectForKey: @"annotationFilePaths"];
-
-    NSLog(@"--> Our annotation file paths -->");
-    for(NSString *annotationPath in annotationFilePaths) {
-        NSLog(@"%@", annotationPath);
-    }
-    NSLog(@"<-- End of annotation file paths <--");
-
-
+    // Extra all the annotation file paths and document Data
+    NSDictionary* annotationFileData = [options objectForKey: @"annotationFileData"];
+    long documentId = [[options objectForKey: @"id"] longValue];
+ 
     PSPDFDocument *document = [PSPDFDocument documentWithURL:url];
     [self setOptions:newOptions forObject:_pdfDocument animated:NO];
     document.title = @"TEST TITLE";
 
+    // Sets up the mechanism that handles our annotations
     [document setDidCreateDocumentProviderBlock:^(PSPDFDocumentProvider *documentProvider) {
         if(documentProvider.document.annotationsEnabled){
-            IsourceAnnotationProvider *annotationProvider = [[IsourceAnnotationProvider alloc] initWithDocumentProvider:documentProvider with:annotationFilePaths and: (WKWebView* )self.webView];
+            IsourceAnnotationProvider *annotationProvider = [[IsourceAnnotationProvider alloc] initWithDocumentProvider:documentProvider
+                                                                                                 withAnnotationFileData:annotationFileData
+                                                                                                         withDocumentId:documentId
+                                                                                                                    and:(WKWebView*)self.webView];
             documentProvider.annotationManager.annotationProviders = @[annotationProvider, documentProvider.annotationManager.fileAnnotationProvider];
         } else {
             NSLog(@"Annotations disabled");
