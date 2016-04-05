@@ -8,24 +8,22 @@
 
 #import "IsourceAnnotationProvider.h"
 
+
 static NSString *const XmlDeclaration = @"<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
 
 @interface IsourceAnnotationProvider()
     @property (nonatomic) long documentId;
 
-    @property (nonatomic, copy) NSMutableArray<__kindof PSPDFAnnotation *>* allAnnotations;
     @property (nonatomic) NSDictionary* annotationFileData;
 
-    @property (nonatomic, copy) NSMutableArray<__kindof PSPDFAnnotation *>* myAnnotations;
     @property (nonatomic) NSString* myAnnotationFilePath;
-
-    @property (nonatomic, copy) NSMutableArray<__kindof PSPDFAnnotation *>* otherAnnotations;
     @property (nonatomic) NSMutableArray* otherAnnotationFilePaths;
 
-    @property (nonatomic) NSMutableArray<__kindof PSPDFAnnotation *>* allAnnotationFilePaths;
+    @property (nonatomic, copy) NSMutableArray<__kindof PSPDFAnnotation *>* allAnnotations;
+    @property (nonatomic, copy) NSMutableArray<__kindof PSPDFAnnotation *>* myAnnotations;
+    @property (nonatomic, copy) NSMutableArray<__kindof PSPDFAnnotation *>* otherAnnotations;
 
     @property (nonatomic) WKWebView* webView;
-
 @end
 
 @implementation IsourceAnnotationProvider
@@ -135,7 +133,8 @@ static NSString *const XmlDeclaration = @"<?xml version=\"1.0\" encoding=\"UTF-8
     
     NSString* script = [NSString stringWithFormat:@"window.PSPDFKitEvents.persistAnnotations(%ld, '%@')", _documentId, newFdfXML];
     
-    [self stringByEvaluatingJavaScriptFromString: script];
+    [PSPDFKitPlugin stringByEvaluatingJavaScriptFromString:script withInterpreter:(WKWebView *)self.webView];
+    // [PSPDFKitPlugin stringByEvaluatingJavaScriptFromString:script withInterpreter:self.webView];
 }
 
 // Extract annotations from disk, initialize the stores, then draw them
@@ -209,27 +208,6 @@ static NSString *const XmlDeclaration = @"<?xml version=\"1.0\" encoding=\"UTF-8
     }
     
     return annotations;
-}
-
-// TODO: Externalize this into a file
-- (NSString *)stringByEvaluatingJavaScriptFromString:(NSString *)script {
-    
-    __block NSString *result;
-    if ([_webView isKindOfClass:UIWebView.class]) {
-        result = [(UIWebView *)_webView stringByEvaluatingJavaScriptFromString:script];
-    } else {
-        dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
-        [((WKWebView *)_webView) evaluateJavaScript:script completionHandler:^(id resultID, NSError *error) {
-            result = [resultID description];
-        }];
-        
-        // Ugly way to convert the async call into a sync call.
-        // Since WKWebView calls back on the main thread we can't block.
-        while (dispatch_semaphore_wait(semaphore, DISPATCH_TIME_NOW)) {
-            [NSRunLoop.currentRunLoop runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:10]];
-        }
-    }
-    return result;
 }
 
 @end

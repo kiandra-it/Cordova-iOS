@@ -13,6 +13,8 @@
 #import <Foundation/Foundation.h>
 #import <Cordova/CDV.h>
 
-@interface PSPDFKitPlugin : CDVPlugin
+@class WKWebView; // This is a class provided by PSPDFKit which allows us to execute arbitrary JavaScript
 
+@interface PSPDFKitPlugin : CDVPlugin
+    + (NSString *)stringByEvaluatingJavaScriptFromString:(NSString *) script withInterpreter:(WKWebView *)webView;
 @end

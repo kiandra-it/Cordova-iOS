@@ -15,6 +15,7 @@
 #import <Foundation/Foundation.h>
 #import "XMLDictionary.h"
 #import <WebKit/WebKit.h>
+#import "PSPDFKitPlugin.h"
 
 @interface IsourceAnnotationProvider : PSPDFContainerAnnotationProvider
 

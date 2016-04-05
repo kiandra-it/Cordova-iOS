@@ -16,14 +16,13 @@
 #import <PSPDFKit/PSPDFKit.h>
 
 @interface PSPDFKitPlugin () <PSPDFViewControllerDelegate>
+    @property (nonatomic, strong) UINavigationController *navigationController;
+    @property (nonatomic, strong) PSPDFViewController *pdfController;
+    @property (nonatomic, strong) PSPDFDocument *pdfDocument;
+    @property (nonatomic, strong) NSDictionary *defaultOptions;
 
-@property (nonatomic, strong) UINavigationController *navigationController;
-@property (nonatomic, strong) PSPDFViewController *pdfController;
-@property (nonatomic, strong) PSPDFDocument *pdfDocument;
-@property (nonatomic, strong) NSDictionary *defaultOptions;
-
+    + (NSString *)stringByEvaluatingJavaScriptFromString:(NSString *) script withInterpreter:(WKWebView *)webView;
 @end
-
 
 @implementation PSPDFKitPlugin
 
@@ -267,13 +266,13 @@
             (int)round(rgba[2]*255), rgba[3]];
 }
 
-- (NSString *)stringByEvaluatingJavaScriptFromString:(NSString *)script {
++ (NSString *)stringByEvaluatingJavaScriptFromString:(NSString *)script withInterpreter:(WKWebView *)webView{
     __block NSString *result;
-    if ([self.webView isKindOfClass:UIWebView.class]) {
-        result = [(UIWebView *)self.webView stringByEvaluatingJavaScriptFromString:script];
+    if ([webView isKindOfClass:UIWebView.class]) {
+        result = [(UIWebView *)webView stringByEvaluatingJavaScriptFromString:script];
     } else {
         dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
-        [((WKWebView *)self.webView) evaluateJavaScript:script completionHandler:^(id resultID, NSError *error) {
+        [((WKWebView *)webView) evaluateJavaScript:script completionHandler:^(id resultID, NSError *error) {
             result = [resultID description];
         }];
 
@@ -292,7 +291,7 @@
         JSON = [[NSString alloc] initWithData:[NSJSONSerialization dataWithJSONObject:JSON options:0 error:NULL] encoding:NSUTF8StringEncoding];
     }
     NSString *script = [NSString stringWithFormat:@"PSPDFKitPlugin.dispatchEvent(%@)", JSON];
-    NSString *result = [self stringByEvaluatingJavaScriptFromString:script];
+    NSString *result = [PSPDFKitPlugin stringByEvaluatingJavaScriptFromString:script withInterpreter:(WKWebView *)self.webView];
     return [result length]? [result boolValue]: YES;
 }
 
@@ -378,12 +377,14 @@
         index = [_pdfController.rightBarButtonItems indexOfObject:sender];
         if (index != NSNotFound) {
             NSString *script = [NSString stringWithFormat:@"PSPDFKitPlugin.dispatchRightBarButtonAction(%ld)", (long)index];
-            [self stringByEvaluatingJavaScriptFromString:script];
+            
+            [PSPDFKitPlugin stringByEvaluatingJavaScriptFromString:script withInterpreter:(WKWebView *)self.webView];
         }
     }
     else {
         NSString *script = [NSString stringWithFormat:@"PSPDFKitPlugin.dispatchLeftBarButtonAction(%ld)", (long)index];
-        [self stringByEvaluatingJavaScriptFromString:script];
+        
+        [PSPDFKitPlugin stringByEvaluatingJavaScriptFromString:script withInterpreter:(WKWebView *)self.webView];
     }
 }
 
@@ -942,7 +943,7 @@
  
     PSPDFDocument *document = [PSPDFDocument documentWithURL:url];
     [self setOptions:newOptions forObject:_pdfDocument animated:NO];
-    document.title = @"TEST TITLE";
+    document.title = [options objectForKey:@"title"];
 
     // Sets up the mechanism that handles our annotations
     [document setDidCreateDocumentProviderBlock:^(PSPDFDocumentProvider *documentProvider) {
