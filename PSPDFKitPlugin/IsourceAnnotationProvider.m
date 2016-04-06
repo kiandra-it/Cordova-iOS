@@ -8,7 +8,6 @@
 
 #import "IsourceAnnotationProvider.h"
 
-
 static NSString *const XmlDeclaration = @"<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
 
 @interface IsourceAnnotationProvider()
@@ -19,7 +18,6 @@ static NSString *const XmlDeclaration = @"<?xml version=\"1.0\" encoding=\"UTF-8
     @property (nonatomic) NSString* myAnnotationFilePath;
     @property (nonatomic) NSMutableArray* otherAnnotationFilePaths;
 
-    @property (nonatomic, copy) NSMutableArray<__kindof PSPDFAnnotation *>* allAnnotations;
     @property (nonatomic, copy) NSMutableArray<__kindof PSPDFAnnotation *>* myAnnotations;
     @property (nonatomic, copy) NSMutableArray<__kindof PSPDFAnnotation *>* otherAnnotations;
 
@@ -38,8 +36,6 @@ static NSString *const XmlDeclaration = @"<?xml version=\"1.0\" encoding=\"UTF-8
         _documentId = documentId;
         _annotationFileData = annotationFileData;
         
-        _allAnnotations = [NSMutableArray new];
-
         NSString* myAnnotationFilePath = [annotationFileData objectForKey: @"annotationFilePath"];
         _myAnnotationFilePath = ![myAnnotationFilePath isEqualToString: @""] ? myAnnotationFilePath : NULL;
         _myAnnotations = [NSMutableArray new];
@@ -58,8 +54,7 @@ static NSString *const XmlDeclaration = @"<?xml version=\"1.0\" encoding=\"UTF-8
                   myAnnotationPath:_myAnnotationFilePath
           andOtherAnnotationsPaths:_otherAnnotationFilePaths
                toMyAnnotationStore:_myAnnotations
-            toOtherAnnotationStore:_otherAnnotations
-                     toGlobalStore:_allAnnotations];
+            toOtherAnnotationStore:_otherAnnotations];
     }
 
     return self;
@@ -72,7 +67,6 @@ static NSString *const XmlDeclaration = @"<?xml version=\"1.0\" encoding=\"UTF-8
     NSLog(@"addAnnotations called");
     
     // Update our annotations store to reflect new changes
-    [_allAnnotations addObjectsFromArray:annotations];
     [_myAnnotations addObjectsFromArray:annotations];
     
     [self persistAnnotations: _myAnnotations];
@@ -86,11 +80,6 @@ static NSString *const XmlDeclaration = @"<?xml version=\"1.0\" encoding=\"UTF-8
 
     NSLog(@"removeAnnotations called");
     
-    [_allAnnotations enumerateObjectsWithOptions:NSEnumerationReverse usingBlock:^(PSPDFAnnotation* annotation, NSUInteger index, BOOL* stop) {
-        if (annotations[0] == annotation) // TODO: Check if there can be multiple annotations
-            [_allAnnotations removeObjectAtIndex:index];
-    }];
-    
     [_myAnnotations enumerateObjectsWithOptions:NSEnumerationReverse usingBlock:^(PSPDFAnnotation* annotation, NSUInteger index, BOOL* stop) {
         if (annotations[0] == annotation) // TODO: Check if there can be multiple annotations
             [_myAnnotations removeObjectAtIndex:index];
@@ -103,8 +92,8 @@ static NSString *const XmlDeclaration = @"<?xml version=\"1.0\" encoding=\"UTF-8
 
 /* 
  HOOK: Called when a fine gained change happens to the annotations (typically called when addAnnotations isn't)
- NOTE: Annotations in the collections (_myAnnotation and _allAnnotations) are updated automatically by PSPDFKit to reflect the changes to those annotations
-        and as a result they can just be parsed to get an up to date FDF.
+ NOTE: _myAnnotations is just a collection of annotations pointers, the underlying annotations that _myAnnotations points to is actually automatically manipulated
+        and changed by PSPDFKit. We are just hooking in when something is changed.
  */
 - (void) didChangeAnnotation:(PSPDFAnnotation *)annotation keyPaths:(NSArray<NSString *> *)keyPaths options:(nullable NSDictionary<NSString *, id> *)options {
     NSLog(@"didChangeAnnotation called");
@@ -134,7 +123,6 @@ static NSString *const XmlDeclaration = @"<?xml version=\"1.0\" encoding=\"UTF-8
     NSString* script = [NSString stringWithFormat:@"window.PSPDFKitEvents.persistAnnotations(%ld, '%@')", _documentId, newFdfXML];
     
     [PSPDFKitPlugin stringByEvaluatingJavaScriptFromString:script withInterpreter:(WKWebView *)self.webView];
-    // [PSPDFKitPlugin stringByEvaluatingJavaScriptFromString:script withInterpreter:self.webView];
 }
 
 // Extract annotations from disk, initialize the stores, then draw them
@@ -143,10 +131,8 @@ static NSString *const XmlDeclaration = @"<?xml version=\"1.0\" encoding=\"UTF-8
     andOtherAnnotationsPaths:(NSArray *)otherAnnotationFilePaths
          toMyAnnotationStore:(NSMutableArray<__kindof PSPDFAnnotation *> *)myAnnotationStore
       toOtherAnnotationStore:(NSMutableArray<__kindof PSPDFAnnotation *> *)otherAnnotationsStore
-               toGlobalStore:(NSMutableArray<__kindof PSPDFAnnotation *> *)allAnnotationsStore
 {
     dispatch_async(dispatch_get_main_queue(), ^{
-        [allAnnotationsStore removeAllObjects];
         
         // Extract out the annotations that I have created from the disk
         if (myAnnotationFilePath != NULL) {
@@ -173,11 +159,9 @@ static NSString *const XmlDeclaration = @"<?xml version=\"1.0\" encoding=\"UTF-8
             NSLog(@"Added: %lu annotations from %@", (unsigned long)tempAnnotationsStore.count, [otherUsersAnnotationData objectForKey: @"annotationFilePath"]);
         }
         
-        // Update the global store so that it can be shown
-        [allAnnotationsStore addObjectsFromArray:myAnnotationStore];
-        [allAnnotationsStore addObjectsFromArray:otherAnnotationsStore];
-        
-        [super addAnnotations:allAnnotationsStore options:nil]; // After parsing the annotations we must pass them through to be added to the document
+        // After parsing the annotations we must pass them through to be added to the document
+        [super addAnnotations: myAnnotationStore options:nil];
+        [super addAnnotations: otherAnnotationsStore options:nil];
     });
 
     return YES;

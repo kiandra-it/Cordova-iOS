@@ -973,43 +973,6 @@
          ];
     }];
 
-
-
-//    NSString *path = [command argumentAtIndex:0];
-//    NSDictionary *options = [command argumentAtIndex:1] ?: [command argumentAtIndex:2];
-//
-//    // merge options with defaults
-//    NSMutableDictionary *newOptions = [self.defaultOptions mutableCopy];
-//    [newOptions addEntriesFromDictionary:options];
-//
-//    if (path) {
-//        //configure document
-//        NSURL *url = [self pdfFileURLWithPath:path];
-//        _pdfDocument = [PSPDFDocument documentWithURL:url];
-//        [self setOptions:newOptions forObject:_pdfDocument animated:NO];
-//    }
-//
-//    // configure controller
-//    if (!_pdfController) {
-//        _pdfController = [[PSPDFViewController alloc] init];
-//        _pdfController.delegate = self;
-//        _navigationController = [[UINavigationController alloc] initWithRootViewController:_pdfController];
-//    }
-//    [self setOptions:newOptions forObject:_pdfController animated:NO];
-//    _pdfController.document = _pdfDocument;
-//
-//    //present controller
-//    if (!_navigationController.presentingViewController) {
-//        [self.viewController presentViewController:_navigationController animated:YES completion:^{
-//
-//            [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK]
-//                                        callbackId:command.callbackId];
-//        }];
-//    }
-//    else {
-//        [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK]
-//                                    callbackId:command.callbackId];
-//    }
 }
 
 - (void)dismiss:(CDVInvokedUrlCommand *)command
