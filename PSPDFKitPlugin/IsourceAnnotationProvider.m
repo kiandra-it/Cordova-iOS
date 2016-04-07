@@ -4,11 +4,8 @@
 //
 //  Created by Dale Salter on 10/03/2016.
 //
-//
 
 #import "IsourceAnnotationProvider.h"
-
-static NSString *const XmlDeclaration = @"<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
 
 @interface IsourceAnnotationProvider()
     @property (nonatomic) long documentId;
@@ -60,7 +57,14 @@ static NSString *const XmlDeclaration = @"<?xml version=\"1.0\" encoding=\"UTF-8
     return self;
 }
 
-/* HOOK: Called when an annotation has been added */
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#pragma mark - PSPDKit Subclass Hooks
+/*
+ NOTE: _myAnnotations is just a collection of annotations pointers, the underlying annotations that _myAnnotations points to is  automatically
+        manipulated and changed by PSPDFKit. These methods give which specific PSPDFAnnotations are affected by the user input event.
+ */
+
+// HOOK: Called when an annotation has been added, returns a pointer to collection of finer gain annotations (an annotation can have multiple smaller annotations associated with it)
 - (NSArray<__kindof PSPDFAnnotation *> *) addAnnotations:(NSArray<__kindof PSPDFAnnotation *> *)annotations options:(NSDictionary<NSString *, id> *)options {
     if (annotations.count == 0) return annotations;
 
@@ -74,7 +78,7 @@ static NSString *const XmlDeclaration = @"<?xml version=\"1.0\" encoding=\"UTF-8
     return [super addAnnotations:annotations options:options];
 }
 
-/* HOOK: Called when an annotation has been removed */
+// HOOK: Called when an annotation has been removed
 - (NSArray<__kindof PSPDFAnnotation *> *) removeAnnotations:(NSArray<__kindof PSPDFAnnotation *> *)annotations options:(NSDictionary<NSString *, id> *)options {
     if (annotations.count == 0) return annotations;
 
@@ -90,16 +94,15 @@ static NSString *const XmlDeclaration = @"<?xml version=\"1.0\" encoding=\"UTF-8
     return [super removeAnnotations:annotations options:options];
 }
 
-/* 
- HOOK: Called when a fine gained change happens to the annotations (typically called when addAnnotations isn't)
- NOTE: _myAnnotations is just a collection of annotations pointers, the underlying annotations that _myAnnotations points to is actually automatically manipulated
-        and changed by PSPDFKit. We are just hooking in when something is changed.
- */
+// HOOK: Called when a fine gained change happens to the annotations (typically called when addAnnotations isn't)
 - (void) didChangeAnnotation:(PSPDFAnnotation *)annotation keyPaths:(NSArray<NSString *> *)keyPaths options:(nullable NSDictionary<NSString *, id> *)options {
     NSLog(@"didChangeAnnotation called");
     
     [self persistAnnotations: _myAnnotations];
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#pragma mark - JavaScript Calls
 
 // Turns the collection of annotations into FDF, and sends that off to the JavaScript to be persisted
 - (void) persistAnnotations:(NSMutableArray *)myAnnotations {
@@ -125,47 +128,8 @@ static NSString *const XmlDeclaration = @"<?xml version=\"1.0\" encoding=\"UTF-8
     [PSPDFKitPlugin stringByEvaluatingJavaScriptFromString:script withInterpreter:(WKWebView *)self.webView];
 }
 
-// Extract annotations from disk, initialize the stores, then draw them
-- (BOOL)initalizeAnnotations:(NSDictionary *)annotationFileData
-            myAnnotationPath:(NSString *)myAnnotationFilePath
-    andOtherAnnotationsPaths:(NSArray *)otherAnnotationFilePaths
-         toMyAnnotationStore:(NSMutableArray<__kindof PSPDFAnnotation *> *)myAnnotationStore
-      toOtherAnnotationStore:(NSMutableArray<__kindof PSPDFAnnotation *> *)otherAnnotationsStore
-{
-    dispatch_async(dispatch_get_main_queue(), ^{
-        
-        // Extract out the annotations that I have created from the disk
-        if (myAnnotationFilePath != NULL) {
-           [myAnnotationStore addObjectsFromArray: [self parseAnnotations: myAnnotationFilePath]];
-            
-            for (PSPDFAnnotation *myAnnotation in myAnnotationStore){
-                myAnnotation.user = @"You";
-            }
-            
-            NSLog(@"Added: %lu annotations from %@", (unsigned long)myAnnotationStore.count, myAnnotationFilePath);
-        }
-        
-        // Extra out all the other annotations that other people have made from the disk
-        for (NSDictionary* otherUsersAnnotationData in [annotationFileData objectForKey: @"otherUsersAnnotations"]) {
-            NSArray* tempAnnotationsStore = [self parseAnnotations: [otherUsersAnnotationData objectForKey: @"annotationFilePath"]];
-            
-            for (PSPDFAnnotation *otherAnnotation in tempAnnotationsStore){
-                otherAnnotation.user = [otherUsersAnnotationData objectForKey: @"fullName"];
-                otherAnnotation.editable = NO;  // Stop other people from editing annotations that arent theirs.
-            }
-            
-            [otherAnnotationsStore addObjectsFromArray:tempAnnotationsStore];
-            
-            NSLog(@"Added: %lu annotations from %@", (unsigned long)tempAnnotationsStore.count, [otherUsersAnnotationData objectForKey: @"annotationFilePath"]);
-        }
-        
-        // After parsing the annotations we must pass them through to be added to the document
-        [super addAnnotations: myAnnotationStore options:nil];
-        [super addAnnotations: otherAnnotationsStore options:nil];
-    });
-
-    return YES;
-}
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#pragma mark - Utility Methods
 
 // Parse the file at filePath, then return those annotations
 - (NSArray<__kindof PSPDFAnnotation *> *)parseAnnotations:(NSString *)filePath {
@@ -192,6 +156,51 @@ static NSString *const XmlDeclaration = @"<?xml version=\"1.0\" encoding=\"UTF-8
     }
     
     return annotations;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#pragma mark - Initialisation Methods
+
+// Extract annotations from disk, initialize the stores, then draw them
+- (BOOL)initalizeAnnotations:(NSDictionary *)annotationFileData
+            myAnnotationPath:(NSString *)myAnnotationFilePath
+    andOtherAnnotationsPaths:(NSArray *)otherAnnotationFilePaths
+         toMyAnnotationStore:(NSMutableArray<__kindof PSPDFAnnotation *> *)myAnnotationStore
+      toOtherAnnotationStore:(NSMutableArray<__kindof PSPDFAnnotation *> *)otherAnnotationsStore
+{
+    dispatch_async(dispatch_get_main_queue(), ^{
+        
+        // Extract out the annotations that I have created from the disk
+        if (myAnnotationFilePath != NULL) {
+            [myAnnotationStore addObjectsFromArray: [self parseAnnotations: myAnnotationFilePath]];
+            
+            for (PSPDFAnnotation *myAnnotation in myAnnotationStore){
+                myAnnotation.user = @"You";
+            }
+            
+            NSLog(@"Added: %lu annotations from %@", (unsigned long)myAnnotationStore.count, myAnnotationFilePath);
+        }
+        
+        // Extra out all the other annotations that other people have made from the disk
+        for (NSDictionary* otherUsersAnnotationData in [annotationFileData objectForKey: @"otherUsersAnnotations"]) {
+            NSArray* tempAnnotationsStore = [self parseAnnotations: [otherUsersAnnotationData objectForKey: @"annotationFilePath"]];
+            
+            for (PSPDFAnnotation *otherAnnotation in tempAnnotationsStore){
+                otherAnnotation.user = [otherUsersAnnotationData objectForKey: @"fullName"];
+                otherAnnotation.editable = NO;  // Stop other people from editing annotations that arent theirs.
+            }
+            
+            [otherAnnotationsStore addObjectsFromArray:tempAnnotationsStore];
+            
+            NSLog(@"Added: %lu annotations from %@", (unsigned long)tempAnnotationsStore.count, [otherUsersAnnotationData objectForKey: @"annotationFilePath"]);
+        }
+        
+        // After parsing the annotations we must pass them through to be added to the document
+        [super addAnnotations: myAnnotationStore options:nil];
+        [super addAnnotations: otherAnnotationsStore options:nil];
+    });
+    
+    return YES;
 }
 
 @end

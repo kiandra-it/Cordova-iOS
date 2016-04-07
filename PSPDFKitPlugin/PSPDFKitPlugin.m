@@ -26,6 +26,99 @@
 
 @implementation PSPDFKitPlugin
 
+#pragma mark Document methods
+
+- (void)present:(CDVInvokedUrlCommand *)command {
+    
+    // SET UP THE DOCUMENT
+    NSString *path = [command argumentAtIndex:0];
+    NSURL *url = [self pdfFileURLWithPath:path];
+    
+    NSDictionary *options = [command argumentAtIndex:1] ?: [command argumentAtIndex:2];
+    NSMutableDictionary *newOptions = [self.defaultOptions mutableCopy];
+    [newOptions addEntriesFromDictionary:options];
+    
+    // Extra all the annotation file paths and document Data
+    NSDictionary* annotationFileData = [options objectForKey: @"annotationFileData"];
+    long documentId = [[options objectForKey: @"id"] longValue];
+    
+    PSPDFDocument *document = [PSPDFDocument documentWithURL:url];
+    [self setOptions:newOptions forObject:_pdfDocument animated:NO];
+    document.title = [options objectForKey:@"title"];
+    
+    // Sets up the mechanism that handles our annotations
+    [document setDidCreateDocumentProviderBlock:^(PSPDFDocumentProvider *documentProvider) {
+        if(documentProvider.document.annotationsEnabled){
+            IsourceAnnotationProvider *annotationProvider = [[IsourceAnnotationProvider alloc] initWithDocumentProvider:documentProvider
+                                                                                                 withAnnotationFileData:annotationFileData
+                                                                                                         withDocumentId:documentId
+                                                                                                                    and:(WKWebView*)self.webView];
+            documentProvider.annotationManager.annotationProviders = @[annotationProvider, documentProvider.annotationManager.fileAnnotationProvider];
+        } else {
+            NSLog(@"Annotations disabled");
+        }
+    }];
+    
+    // CREATE THE UI THINGS
+    _pdfController = [[PSPDFViewController alloc] init];
+    _pdfController.delegate = self;
+    _navigationController = [[UINavigationController alloc] initWithRootViewController:_pdfController];
+    
+    [self setOptions:newOptions forObject:_pdfController animated:NO];
+    _pdfController.document = document;
+    
+    
+    [self.viewController presentViewController:_navigationController animated:YES completion:^{
+        [self.commandDelegate sendPluginResult: [CDVPluginResult resultWithStatus:CDVCommandStatus_OK]
+                                    callbackId:command.callbackId
+         ];
+    }];
+    
+}
+
+- (void)dismiss:(CDVInvokedUrlCommand *)command
+{
+    [_navigationController.presentingViewController dismissViewControllerAnimated:YES completion:^{
+        
+        [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK]
+                                    callbackId:command.callbackId];
+    }];
+}
+
+- (void)reload:(CDVInvokedUrlCommand *)command
+{
+    [_pdfController reloadData];
+    [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK]
+                                callbackId:command.callbackId];
+}
+
+- (void)search:(CDVInvokedUrlCommand *)command
+{
+    CDVPluginResult *pluginResult = nil;
+    NSString *query = [command argumentAtIndex:0];
+    BOOL animated = [[command argumentAtIndex:1 withDefault:@NO] boolValue];
+    BOOL headless = [[command argumentAtIndex:2 withDefault:@NO] boolValue];
+    
+    if (query) {
+        [_pdfController searchForString:query options:@{PSPDFViewControllerSearchHeadlessKey: @(headless)} sender:nil animated:animated];
+        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
+    }
+    else {
+        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
+                                         messageAsString:@"'query' argument was null"];
+    }
+    
+    [self.commandDelegate sendPluginResult:pluginResult
+                                callbackId:command.callbackId];
+}
+
+- (void)saveAnnotations:(CDVInvokedUrlCommand *)command
+{
+    NSError *error = nil;
+    [_pdfController.document saveAnnotationsWithError:&error];
+    [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:[self dictionaryWithError:error]] callbackId:command.callbackId];
+}
+
 #pragma mark Private methods
 
 - (NSDictionary *)defaultOptions
@@ -925,98 +1018,7 @@
     [self generatePDFFromHTMLString:decodeHTMLString outputFile:outputFilePath options:options completionBlock:completionBlock];
 }
 
-#pragma mark Document methods
 
-- (void)present:(CDVInvokedUrlCommand *)command {
-
-    // SET UP THE DOCUMENT
-    NSString *path = [command argumentAtIndex:0];
-    NSURL *url = [self pdfFileURLWithPath:path];
-
-    NSDictionary *options = [command argumentAtIndex:1] ?: [command argumentAtIndex:2];
-    NSMutableDictionary *newOptions = [self.defaultOptions mutableCopy];
-    [newOptions addEntriesFromDictionary:options];
-
-    // Extra all the annotation file paths and document Data
-    NSDictionary* annotationFileData = [options objectForKey: @"annotationFileData"];
-    long documentId = [[options objectForKey: @"id"] longValue];
- 
-    PSPDFDocument *document = [PSPDFDocument documentWithURL:url];
-    [self setOptions:newOptions forObject:_pdfDocument animated:NO];
-    document.title = [options objectForKey:@"title"];
-
-    // Sets up the mechanism that handles our annotations
-    [document setDidCreateDocumentProviderBlock:^(PSPDFDocumentProvider *documentProvider) {
-        if(documentProvider.document.annotationsEnabled){
-            IsourceAnnotationProvider *annotationProvider = [[IsourceAnnotationProvider alloc] initWithDocumentProvider:documentProvider
-                                                                                                 withAnnotationFileData:annotationFileData
-                                                                                                         withDocumentId:documentId
-                                                                                                                    and:(WKWebView*)self.webView];
-            documentProvider.annotationManager.annotationProviders = @[annotationProvider, documentProvider.annotationManager.fileAnnotationProvider];
-        } else {
-            NSLog(@"Annotations disabled");
-        }
-    }];
-
-    // CREATE THE UI THINGS
-    _pdfController = [[PSPDFViewController alloc] init];
-    _pdfController.delegate = self;
-    _navigationController = [[UINavigationController alloc] initWithRootViewController:_pdfController];
-
-    [self setOptions:newOptions forObject:_pdfController animated:NO];
-    _pdfController.document = document;
-
-
-    [self.viewController presentViewController:_navigationController animated:YES completion:^{
-        [self.commandDelegate sendPluginResult: [CDVPluginResult resultWithStatus:CDVCommandStatus_OK]
-                                            callbackId:command.callbackId
-         ];
-    }];
-
-}
-
-- (void)dismiss:(CDVInvokedUrlCommand *)command
-{
-    [_navigationController.presentingViewController dismissViewControllerAnimated:YES completion:^{
-
-        [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK]
-                                    callbackId:command.callbackId];
-    }];
-}
-
-- (void)reload:(CDVInvokedUrlCommand *)command
-{
-    [_pdfController reloadData];
-    [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK]
-                                callbackId:command.callbackId];
-}
-
-- (void)search:(CDVInvokedUrlCommand *)command
-{
-    CDVPluginResult *pluginResult = nil;
-    NSString *query = [command argumentAtIndex:0];
-    BOOL animated = [[command argumentAtIndex:1 withDefault:@NO] boolValue];
-    BOOL headless = [[command argumentAtIndex:2 withDefault:@NO] boolValue];
-
-    if (query) {
-        [_pdfController searchForString:query options:@{PSPDFViewControllerSearchHeadlessKey: @(headless)} sender:nil animated:animated];
-        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
-    }
-    else {
-        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
-                                         messageAsString:@"'query' argument was null"];
-    }
-
-    [self.commandDelegate sendPluginResult:pluginResult
-                                callbackId:command.callbackId];
-}
-
-- (void)saveAnnotations:(CDVInvokedUrlCommand *)command
-{
-    NSError *error = nil;
-    [_pdfController.document saveAnnotationsWithError:&error];
-    [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:[self dictionaryWithError:error]] callbackId:command.callbackId];
-}
 
 #pragma mark Configuration
 
