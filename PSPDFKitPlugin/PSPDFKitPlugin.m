@@ -12,6 +12,7 @@
 
 #import "PSPDFKitPlugin.h"
 #import "IsourceAnnotationProvider.h"
+#import "UIView+Toast.h"
 #import <WebKit/WebKit.h>
 #import <PSPDFKit/PSPDFKit.h>
 
@@ -74,6 +75,17 @@
          ];
     }];
     
+}
+
+- (void)toast:(CDVInvokedUrlCommand *)command
+{
+    UIWindow *window = [[UIApplication sharedApplication] keyWindow];
+    UIView *topView = window.rootViewController.view;
+    
+    [topView makeToast:@"TOAST!"];
+    
+    [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK]
+                                callbackId:command.callbackId];
 }
 
 - (void)dismiss:(CDVInvokedUrlCommand *)command

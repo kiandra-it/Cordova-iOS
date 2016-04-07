@@ -11,9 +11,9 @@
 //
 
 var PSPDFKitPlugin = new function() {
-    
+
     //utilities
-    
+
     var self = this;
     function addMethods(methods) {
         for (var name in methods) {
@@ -40,11 +40,11 @@ var PSPDFKitPlugin = new function() {
             })();
         }
     }
-    
+
     //events
-    
+
     var listeners = {};
-    
+
     this.dispatchEvent = function(event) {
         var result = undefined;
         var functions = listeners[event.type];
@@ -86,18 +86,18 @@ var PSPDFKitPlugin = new function() {
     }
 
     //license key
-    
+
     addMethods({
                setLicenseKey: ['key'],
                });
     //PDF Generation method
-    
+
     addMethods({
                convertPDFFromHTMLString: ['html', 'fileName', 'options', 'callback'],
                });
-    
+
     //document methods
-    
+
     addMethods({
         present: ['path', 'callback', 'options'],
         dismiss: ['callback'],
@@ -105,18 +105,18 @@ var PSPDFKitPlugin = new function() {
         search: ['query', 'animated', 'headless'],
         saveAnnotations: ['callback'],
     });
-    
+
     //configuration
-    
+
     addMethods({
         setOptions: ['options', 'animated'],
         getOptions: ['names', 'callback'],
         setOption: ['name', 'value', 'animated'],
         getOption: ['name', 'callback'],
     });
-    
+
     //page scrolling
-    
+
     addMethods({
         setPage: ['page', 'animated'],
         getPage: ['callback'],
@@ -125,12 +125,16 @@ var PSPDFKitPlugin = new function() {
         scrollToNextPage: ['animated'],
         scrollToPreviousPage: ['animated'],
     });
-    
+
+    addMethods({
+      toast: ['callback']
+    });
+
     //toolbar
-    
+
     var leftBarButtonItems = ['close'];
     var rightBarButtonItems = ['search', 'outline', 'viewMode'];
-    
+
     this.dispatchLeftBarButtonAction = function(index)
     {
         leftBarButtonItems[index].action();
@@ -159,11 +163,11 @@ var PSPDFKitPlugin = new function() {
     {
         callback(leftBarButtonItems);
     }
-    
+
     this.getRightBarButtonItems = function(callback)
     {
         callback(rightBarButtonItems);
     }
-    
+
 };
 module.exports = PSPDFKitPlugin;
