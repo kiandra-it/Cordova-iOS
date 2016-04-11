@@ -79,13 +79,9 @@
 
 - (void)toast:(CDVInvokedUrlCommand *)command
 {
-    UIWindow *window = [[UIApplication sharedApplication] keyWindow];
-    UIView *topView = window.rootViewController.view;
-    
-    [topView makeToast:@"TOAST!"];
-    
-    [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK]
-                                callbackId:command.callbackId];
+   dispatch_async(dispatch_get_main_queue(), ^{
+       [[[[[UIApplication sharedApplication] keyWindow] subviews] lastObject] makeToast: [command argumentAtIndex:0]];
+   });
 }
 
 - (void)dismiss:(CDVInvokedUrlCommand *)command

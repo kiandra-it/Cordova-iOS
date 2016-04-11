@@ -118,14 +118,20 @@
     NSData *fdfData = [stream propertyForKey:NSStreamDataWrittenToMemoryStreamKey];
     [stream close];
     
-    NSString* newFdfXML = [[NSString alloc] initWithData:fdfData encoding:NSUTF8StringEncoding];
-    
-    // String contains new lines which need to be stripped to be passed as an argument
-    newFdfXML = [newFdfXML stringByReplacingOccurrencesOfString:@"\n" withString:@""];
-    
-    NSString* script = [NSString stringWithFormat:@"window.PSPDFKitEvents.persistAnnotations(%ld, '%@')", _documentId, newFdfXML];
-    
-    [PSPDFKitPlugin stringByEvaluatingJavaScriptFromString:script withInterpreter:(WKWebView *)self.webView];
+    // Lets defer this operation so that the UI does not become too janky
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        NSString* newFdfXML = [[NSString alloc] initWithData:fdfData encoding:NSUTF8StringEncoding];
+        
+        // String contains new lines which need to be stripped to be passed as an argument
+        newFdfXML = [newFdfXML stringByReplacingOccurrencesOfString:@"\n" withString:@""];
+        
+        NSString* script = [NSString stringWithFormat:@"window.PSPDFKitEvents.persistAnnotations(%ld, '%@')", _documentId, newFdfXML];
+        
+        // We must run JavaScript on main thread
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [PSPDFKitPlugin stringByEvaluatingJavaScriptFromString:script withInterpreter:(WKWebView *)self.webView];
+        });
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
