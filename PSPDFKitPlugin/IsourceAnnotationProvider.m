@@ -85,8 +85,10 @@
     NSLog(@"removeAnnotations called");
     
     [_myAnnotations enumerateObjectsWithOptions:NSEnumerationReverse usingBlock:^(PSPDFAnnotation* annotation, NSUInteger index, BOOL* stop) {
-        if (annotations[0] == annotation) // TODO: Check if there can be multiple annotations
-            [_myAnnotations removeObjectAtIndex:index];
+        // We need to check against all annotations because we may use `clear all`
+        for (PSPDFAnnotation* checkForAnnotation in annotations)
+            if (checkForAnnotation == annotation)
+                [_myAnnotations removeObjectAtIndex:index];
     }];
     
     [self persistAnnotations: _myAnnotations];
