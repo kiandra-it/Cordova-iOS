@@ -127,7 +127,11 @@ var PSPDFKitPlugin = new function() {
     });
 
     addMethods({
-      toast: ['callback']
+      toast: ['text']
+    });
+
+    addMethods({
+      editableAnnotationTypes: ['types']
     });
 
     //toolbar
