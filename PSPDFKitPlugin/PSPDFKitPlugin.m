@@ -68,6 +68,11 @@
     [self setOptions:newOptions forObject:_pdfController animated:NO];
     _pdfController.document = document;
     
+    // The first time we open our application for writing annotations (when updated/installed), PSPDFKit defaults to asking for a
+    //  author name. Lets stop that prompt because we programmatically handle setting this.
+    [_pdfController updateConfigurationWithBuilder:^(PSPDFConfigurationBuilder *builder) {
+        builder.shouldAskForAnnotationUsername = NO;
+    }];
     
     [self.viewController presentViewController:_navigationController animated:YES completion:^{
         [self.commandDelegate sendPluginResult: [CDVPluginResult resultWithStatus:CDVCommandStatus_OK]
