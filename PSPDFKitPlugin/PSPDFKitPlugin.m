@@ -77,6 +77,34 @@
     
 }
 
+- (void)editableAnnotationTypes:(CDVInvokedUrlCommand *)command
+{
+    NSArray* types = [command argumentAtIndex:0];
+    
+    
+    if (![types isKindOfClass:[NSArray class]])
+    {
+        types = @[types];
+    }
+    
+    NSMutableSet *qualified = [[NSMutableSet alloc] init];
+    for (NSString *type in types)
+    {
+        NSString *prefix = @"PSPDFAnnotationType";
+        if ([type hasPrefix:prefix]) {
+            [qualified addObject:[type substringFromIndex:prefix.length]];
+        }
+        else if ([type length]) {
+            [qualified addObject:[NSString stringWithFormat:@"%@%@", [[type substringToIndex:1] uppercaseString], [type substringFromIndex:1]]];
+        }
+    }
+    
+    [_pdfController updateConfigurationWithBuilder:^(PSPDFConfigurationBuilder *builder) {
+        builder.editableAnnotationTypes = qualified;
+    }];
+}
+
+
 - (void)toast:(CDVInvokedUrlCommand *)command
 {
    dispatch_async(dispatch_get_main_queue(), ^{
@@ -1363,5 +1391,7 @@ static NSString *PSPDFStringFromCGRect(CGRect rect) {
 {
     [self sendEventWithJSON:@{@"type": @"didHideHUD", @"animated": @(animated)}];
 }
+
+
 
 @end
