@@ -70,6 +70,12 @@
 
     NSLog(@"addAnnotations called");
     
+    // In the case that we are copying someone's annotations, we get an exact replicate (including the editable flag being false), so because it's now ours,
+    //  we should be able to edit it.
+    for (PSPDFAnnotation* annotation in annotations){
+        annotation.editable = true;
+    }
+    
     // Update our annotations store to reflect new changes
     [_myAnnotations addObjectsFromArray:annotations];
     
