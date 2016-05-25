@@ -13,7 +13,6 @@
 #import <CoreData/CoreData.h>
 #import <UIKit/UIKit.h>
 #import <Foundation/Foundation.h>
-#import "XMLDictionary.h"
 #import <WebKit/WebKit.h>
 #import "PSPDFKitPlugin.h"
 

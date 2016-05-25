@@ -127,10 +127,6 @@ var PSPDFKitPlugin = new function() {
     });
 
     addMethods({
-      toast: ['text']
-    });
-
-    addMethods({
       editableAnnotationTypes: ['types']
     });
 

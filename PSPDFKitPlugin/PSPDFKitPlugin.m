@@ -12,7 +12,6 @@
 
 #import "PSPDFKitPlugin.h"
 #import "IsourceAnnotationProvider.h"
-#import "UIView+Toast.h"
 #import <WebKit/WebKit.h>
 #import <PSPDFKit/PSPDFKit.h>
 
@@ -30,23 +29,23 @@
 #pragma mark Document methods
 
 - (void)present:(CDVInvokedUrlCommand *)command {
-    
+
     // SET UP THE DOCUMENT
     NSString *path = [command argumentAtIndex:0];
     NSURL *url = [self pdfFileURLWithPath:path];
-    
+
     NSDictionary *options = [command argumentAtIndex:1] ?: [command argumentAtIndex:2];
     NSMutableDictionary *newOptions = [self.defaultOptions mutableCopy];
     [newOptions addEntriesFromDictionary:options];
-    
+
     // Extra all the annotation file paths and document Data
     NSDictionary* annotationFileData = [options objectForKey: @"annotationFileData"];
     long documentId = [[options objectForKey: @"id"] longValue];
-    
+
     PSPDFDocument *document = [PSPDFDocument documentWithURL:url];
     [self setOptions:newOptions forObject:_pdfDocument animated:NO];
     document.title = [options objectForKey:@"title"];
-    
+
     // Sets up the mechanism that handles our annotations
     [document setDidCreateDocumentProviderBlock:^(PSPDFDocumentProvider *documentProvider) {
         if(documentProvider.document.annotationsEnabled){
@@ -59,39 +58,39 @@
             NSLog(@"Annotations disabled");
         }
     }];
-    
+
     // CREATE THE UI THINGS
     _pdfController = [[PSPDFViewController alloc] init];
     _pdfController.delegate = self;
     _navigationController = [[UINavigationController alloc] initWithRootViewController:_pdfController];
-    
+
     [self setOptions:newOptions forObject:_pdfController animated:NO];
     _pdfController.document = document;
-    
+
     // The first time we open our application for writing annotations (when updated/installed), PSPDFKit defaults to asking for a
     //  author name. Lets stop that prompt because we programmatically handle setting this.
     [_pdfController updateConfigurationWithBuilder:^(PSPDFConfigurationBuilder *builder) {
         builder.shouldAskForAnnotationUsername = NO;
     }];
-    
+
     [self.viewController presentViewController:_navigationController animated:YES completion:^{
         [self.commandDelegate sendPluginResult: [CDVPluginResult resultWithStatus:CDVCommandStatus_OK]
                                     callbackId:command.callbackId
          ];
     }];
-    
+
 }
 
 - (void)editableAnnotationTypes:(CDVInvokedUrlCommand *)command
 {
     NSArray* types = [command argumentAtIndex:0];
-    
-    
+
+
     if (![types isKindOfClass:[NSArray class]])
     {
         types = @[types];
     }
-    
+
     NSMutableSet *qualified = [[NSMutableSet alloc] init];
     for (NSString *type in types)
     {
@@ -103,24 +102,16 @@
             [qualified addObject:[NSString stringWithFormat:@"%@%@", [[type substringToIndex:1] uppercaseString], [type substringFromIndex:1]]];
         }
     }
-    
+
     [_pdfController updateConfigurationWithBuilder:^(PSPDFConfigurationBuilder *builder) {
         builder.editableAnnotationTypes = qualified;
     }];
 }
 
-
-- (void)toast:(CDVInvokedUrlCommand *)command
-{
-   dispatch_async(dispatch_get_main_queue(), ^{
-       [[[[[UIApplication sharedApplication] keyWindow] subviews] lastObject] makeToast: [command argumentAtIndex:0]];
-   });
-}
-
 - (void)dismiss:(CDVInvokedUrlCommand *)command
 {
     [_navigationController.presentingViewController dismissViewControllerAnimated:YES completion:^{
-        
+
         [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK]
                                     callbackId:command.callbackId];
     }];
@@ -139,7 +130,7 @@
     NSString *query = [command argumentAtIndex:0];
     BOOL animated = [[command argumentAtIndex:1 withDefault:@NO] boolValue];
     BOOL headless = [[command argumentAtIndex:2 withDefault:@NO] boolValue];
-    
+
     if (query) {
         [_pdfController searchForString:query options:@{PSPDFViewControllerSearchHeadlessKey: @(headless)} sender:nil animated:animated];
         pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
@@ -148,7 +139,7 @@
         pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
                                          messageAsString:@"'query' argument was null"];
     }
-    
+
     [self.commandDelegate sendPluginResult:pluginResult
                                 callbackId:command.callbackId];
 }
@@ -511,13 +502,13 @@
         index = [_pdfController.rightBarButtonItems indexOfObject:sender];
         if (index != NSNotFound) {
             NSString *script = [NSString stringWithFormat:@"PSPDFKitPlugin.dispatchRightBarButtonAction(%ld)", (long)index];
-            
+
             [PSPDFKitPlugin stringByEvaluatingJavaScriptFromString:script withInterpreter:(WKWebView *)self.webView];
         }
     }
     else {
         NSString *script = [NSString stringWithFormat:@"PSPDFKitPlugin.dispatchLeftBarButtonAction(%ld)", (long)index];
-        
+
         [PSPDFKitPlugin stringByEvaluatingJavaScriptFromString:script withInterpreter:(WKWebView *)self.webView];
     }
 }

@@ -25,10 +25,8 @@ http://pspdfkit.com/license.html</license>
 		<header-file src="PSPDFKitPlugin/PSPDFKitPlugin.h"/>
 		<source-file src="PSPDFKitPlugin/IsourceAnnotationProvider.m"/>
 		<header-file src="PSPDFKitPlugin/IsourceAnnotationProvider.h"/>
-		<source-file src="PSPDFKitPlugin/XMLDictionary.m"/>
-		<header-file src="PSPDFKitPlugin/XMLDictionary.h"/>
-		<source-file src="PSPDFKitPlugin/UIView+Toast.m"/>
-		<source-file src="PSPDFKitPlugin/UIView+Toast.h"/>
+
+		<framework src="PSPDFKitPlugin/PSPDFKit.framework" embed="true"/>
 
 		<framework src="CoreText.framework" />
 		<framework src="QuartzCore.framework" />
