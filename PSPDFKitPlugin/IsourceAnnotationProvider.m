@@ -133,6 +133,10 @@
         // String contains new lines which need to be stripped to be passed as an argument
         newFdfXML = [newFdfXML stringByReplacingOccurrencesOfString:@"\n" withString:@""];
         
+        // If our FDF contains any freeform text with ' in it, we must escape them or it will
+        //  cause the JavaScript that we pass up to be invalid
+        newFdfXML = [newFdfXML stringByReplacingOccurrencesOfString:@"'" withString:@"\\'"];
+
         NSString* script = [NSString stringWithFormat:@"window.PSPDFKitEvents.persistAnnotations(%ld, '%@')", _documentId, newFdfXML];
         
         // We must run JavaScript on main thread
