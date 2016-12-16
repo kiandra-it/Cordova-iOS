@@ -20,6 +20,7 @@
 
     - (instancetype)initWithDocumentProvider:(PSPDFDocumentProvider *) documentProvider
                       withAnnotationFileData:(NSDictionary *)annotationFileData
+                              withAvatarUrls:(NSDictionary *)avatarUrls
                               withDocumentId:(long)documentId
                                          and:(WKWebView *) webView;
 

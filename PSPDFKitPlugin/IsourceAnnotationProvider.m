@@ -6,11 +6,13 @@
 //
 
 #import "IsourceAnnotationProvider.h"
+#import "PSPDFAnnotation+AssociatedObject.h"
 
 @interface IsourceAnnotationProvider()
     @property (nonatomic) long documentId;
 
     @property (nonatomic) NSDictionary* annotationFileData;
+    @property (nonatomic) NSDictionary* avatarUrls;
 
     @property (nonatomic) NSString* myAnnotationFilePath;
     @property (nonatomic) NSMutableArray* otherAnnotationFilePaths;
@@ -25,13 +27,15 @@
 {}
 
 - (instancetype)initWithDocumentProvider:(PSPDFDocumentProvider *) documentProvider
-                  withAnnotationFileData:annotationFileData
+                  withAnnotationFileData:(NSDictionary *)annotationFileData
+                          withAvatarUrls:(NSDictionary *)avatarUrls
                           withDocumentId:(long)documentId
                                      and:(WKWebView *) webView
 {
     if ((self = [super initWithDocumentProvider:documentProvider])) {
         _documentId = documentId;
         _annotationFileData = annotationFileData;
+        _avatarUrls = avatarUrls;
         
         NSString* myAnnotationFilePath = [annotationFileData objectForKey: @"annotationFilePath"];
         _myAnnotationFilePath = ![myAnnotationFilePath isEqualToString: @""] ? myAnnotationFilePath : NULL;
@@ -204,8 +208,13 @@
             NSArray* tempAnnotationsStore = [self parseAnnotations: [otherUsersAnnotationData objectForKey: @"annotationFilePath"]];
             
             for (PSPDFAnnotation *otherAnnotation in tempAnnotationsStore){
+                
+                // -- PSPDFAnnotation Properties
                 otherAnnotation.user = [otherUsersAnnotationData objectForKey: @"fullName"];
-                otherAnnotation.editable = NO;  // Stop other people from editing annotations that arent theirs.
+                otherAnnotation.editable = NO; // Stop other people from editing annotations that arent theirs.
+
+                // -- PSPDFAnnotation+AssociatedObject properties
+                [otherAnnotation setUserId: [otherUsersAnnotationData objectForKey: @"userId"]];
             }
             
             [otherAnnotationsStore addObjectsFromArray:tempAnnotationsStore];

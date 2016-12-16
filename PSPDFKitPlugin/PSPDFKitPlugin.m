@@ -14,6 +14,9 @@
 #import "IsourceAnnotationProvider.h"
 #import <WebKit/WebKit.h>
 #import <PSPDFKit/PSPDFKit.h>
+#import "AnnotationAvatarView.h"
+#import "AnnotationAvatarContainerView.h"
+#import "PSPDFAnnotation+AssociatedObject.h"
 
 @interface PSPDFKitPlugin () <PSPDFViewControllerDelegate>
     @property (nonatomic, strong) UINavigationController *navigationController;
@@ -21,12 +24,18 @@
     @property (nonatomic, strong) PSPDFDocument *pdfDocument;
     @property (nonatomic, strong) NSDictionary *defaultOptions;
 
+    @property (nonatomic, strong) NSDictionary *avatarUrls;
+
     + (NSString *)stringByEvaluatingJavaScriptFromString:(NSString *) script withInterpreter:(WKWebView *)webView;
 @end
 
 @implementation PSPDFKitPlugin
 
 #pragma mark Document methods
+
+// TODO: Move out
+static NSInteger TAG_AVATAR_CONTAINER = 1001;
+
 
 - (void)present:(CDVInvokedUrlCommand *)command {
 
@@ -38,12 +47,29 @@
     NSMutableDictionary *newOptions = [self.defaultOptions mutableCopy];
     [newOptions addEntriesFromDictionary:options];
 
-    // Extra all the annotation file paths and document Data
+    // Extract all the annotation file paths and document Data
     NSDictionary* annotationFileData = [options objectForKey: @"annotationFileData"];
+
+    // Extract avatars for all people who have annotated this document
+    NSDictionary* avatarUrlStrings = [options objectForKey: @"avatarUrls"];
+    
+    
+    NSMutableDictionary* avatarUrls = [NSMutableDictionary dictionary];
+    
+    for(NSString* userId in avatarUrlStrings){
+        [avatarUrls setObject: [NSURL URLWithString: [avatarUrlStrings objectForKey: userId]]
+                       forKey: userId];
+    }
+    
+    _avatarUrls = [NSDictionary dictionaryWithDictionary: avatarUrls];
+    
+    // Extract documentId
     long documentId = [[options objectForKey: @"id"] longValue];
 
+    
     PSPDFDocument *document = [PSPDFDocument documentWithURL:url];
     [self setOptions:newOptions forObject:_pdfDocument animated:NO];
+    
     document.title = [options objectForKey:@"title"];
 
     // Sets up the mechanism that handles our annotations
@@ -51,6 +77,7 @@
         if(documentProvider.document.annotationsEnabled){
             IsourceAnnotationProvider *annotationProvider = [[IsourceAnnotationProvider alloc] initWithDocumentProvider:documentProvider
                                                                                                  withAnnotationFileData:annotationFileData
+                                                                                                         withAvatarUrls:avatarUrls
                                                                                                          withDocumentId:documentId
                                                                                                                     and:(WKWebView*)self.webView];
             documentProvider.annotationManager.annotationProviders = @[annotationProvider, documentProvider.annotationManager.fileAnnotationProvider];
@@ -72,13 +99,66 @@
     [_pdfController updateConfigurationWithBuilder:^(PSPDFConfigurationBuilder *builder) {
         builder.shouldAskForAnnotationUsername = NO;
     }];
-
+    
     [self.viewController presentViewController:_navigationController animated:YES completion:^{
         [self.commandDelegate sendPluginResult: [CDVPluginResult resultWithStatus:CDVCommandStatus_OK]
                                     callbackId:command.callbackId
          ];
     }];
 
+}
+
+
+-(void)pdfViewController:(PSPDFViewController *)pdfController didShowPageView:(PSPDFPageView *)pageView{
+
+    //Ensure the pageView contains our overlay view to hold avatars.
+    UIView *avatarContainerView = [pageView viewWithTag:TAG_AVATAR_CONTAINER];
+    
+    if(avatarContainerView == nil){
+        avatarContainerView = [[AnnotationAvatarContainerView alloc]initWithFrame:CGRectMake(0, 0, pageView.bounds.size.width, pageView.bounds.size.height)];
+        avatarContainerView.tag = TAG_AVATAR_CONTAINER;
+        [pageView insertSubview:avatarContainerView aboveSubview:pageView.renderView];
+    }
+    
+    [avatarContainerView.subviews makeObjectsPerformSelector: @selector(removeFromSuperview)];
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        
+        for(PSPDFPageView* pageView in pdfController.visiblePageViews){
+            NSArray* annotations = [_pdfController.document annotationsForPage:pageView.page type:PSPDFAnnotationTypeAll];
+            
+            for(PSPDFAnnotation* annotation in annotations){
+                [self addAvatarViewForAnnotation:annotation pageView:pageView];
+            }
+        }
+        
+    });
+}
+
+
+-(void)addAvatarViewForAnnotation:(PSPDFAnnotation*)annotation pageView:(PSPDFPageView*) pageView{
+    if (annotation.userId == nil) {
+        //This is likely the current user's which don't have avatars.
+        return;
+    }
+    
+    UIView *avatarContainerView = [pageView viewWithTag:TAG_AVATAR_CONTAINER];
+    
+    if (annotation.avatarView == nil) {
+        annotation.avatarView = [[AnnotationAvatarView alloc]initWithAnnotation:annotation withAvatarUrl: [_avatarUrls objectForKey: annotation.userId] ];
+    } else {
+        [annotation.avatarView removeFromSuperview];
+    }
+    
+    [avatarContainerView addSubview:annotation.avatarView];
+    
+    CGRect bottom = annotation.boundingBox;
+    if(annotation.rects){
+        bottom = ((NSValue*)annotation.rects.lastObject).CGRectValue;
+    }
+    
+    CGRect anchor = [pageView convertPDFRectToViewRect:bottom];
+    [annotation.avatarView anchorToRect:anchor];
 }
 
 - (void)editableAnnotationTypes:(CDVInvokedUrlCommand *)command
@@ -1194,10 +1274,10 @@
     return [self sendEventWithJSON:[NSString stringWithFormat:@"{type:'shouldScrollToPage',page:%ld}", (long)page]];
 }
 
-- (void)pdfViewController:(PSPDFViewController *)pdfController didShowPageView:(PSPDFPageView *)pageView
+/* - (void)pdfViewController:(PSPDFViewController *)pdfController didShowPageView:(PSPDFPageView *)pageView
 {
     [self sendEventWithJSON:[NSString stringWithFormat:@"{type:'didShowPageView',page:%ld}", (long) pageView.page]];
-}
+}*/
 
 - (void)pdfViewController:(PSPDFViewController *)pdfController didRenderPageView:(PSPDFPageView *)pageView
 {
