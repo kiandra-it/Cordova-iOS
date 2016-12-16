@@ -21,12 +21,35 @@ http://pspdfkit.com/license.html</license>
 			<clobbers target="PSPDFKitPlugin" />
 		</js-module>
 
+		<!-- START: Core Plugin -->
 		<source-file src="PSPDFKitPlugin/PSPDFKitPlugin.m"/>
 		<header-file src="PSPDFKitPlugin/PSPDFKitPlugin.h"/>
+		<!-- END: Core Plugin -->
+
+		<!-- START: Custom Annotation Support -->
 		<source-file src="PSPDFKitPlugin/IsourceAnnotationProvider.m"/>
 		<header-file src="PSPDFKitPlugin/IsourceAnnotationProvider.h"/>
+		<!-- END: Custom Annotation Support -->
 
+		<!-- START: Custom Bobble Head Support -->
+		<source-file src="PSPDFKitPlugin/AnnotationAvatarContainerView.m"/>
+		<header-file src="PSPDFKitPlugin/AnnotationAvatarContainerView.h"/>
+		<source-file src="PSPDFKitPlugin/AnnotationAvatarView.m"/>
+		<header-file src="PSPDFKitPlugin/AnnotationAvatarView.h"/>
+		<resource-file src="PSPDFKitPlugin/AnnotationAvatarView.xib" />
+		<source-file src="PSPDFKitPlugin/PSPDFAnnotation+AssociatedObject.m"/>
+		<header-file src="PSPDFKitPlugin/PSPDFAnnotation+AssociatedObject.h"/>
+		<!-- END: Custom Bobble Head Support -->
+
+		<!-- START: PSPDFKit Resource File -->
+		<!-- 
+			NOTE: While this adds PSDPDFKit to the framework section of xcode, you must manually
+				add it to the xcode project under the embedded binaries section. See info tag for
+				more information
+		-->
 		<framework src="PSPDFKitPlugin/PSPDFKit.framework" embed="true"/>
+		<!-- END: PSPDFKit Resource File -->
+
 
 		<framework src="CoreText.framework" />
 		<framework src="QuartzCore.framework" />
@@ -45,22 +68,15 @@ http://pspdfkit.com/license.html</license>
 		<framework src="SystemConfiguration.framework" />
 		<framework src="Accelerate.framework" />
 	</platform>
+	
 	<!-- don't indent the info block, because it will also indent the console output -->
 	<info>
-Please download PSPDFKit from your customer portal: https://customers.pspdfkit.com
+For this project to be built with CI/Code, you must as the PSPDFKit.framework to the embedded binaries section
+of XCode MANUALLY!
 
-The .dmg file you downloaded contains a directory called PSPDFKit.framework.
-Please add this directory to your Xcode project file in platforms/ios and follow
-the installation instructions listed here: https://pspdfkit.com/guides/ios/current/getting-started/integrating-pspdfkit/#toc_dynamic-framework
+More information here https://git.kiandra.com.au/kiandra-projects/isv-mobile#updating-plugins
 
-Since this plugin is iOS 8+ only, you will have to set the deployment target
-of your Xcode project in platforms/ios to iOS 8.
-
-Plugin usage example:
-
-PSPDFKitPlugin.present('file.pdf', {
-	pageTransition: 'curl',
-	editableAnnotationTypes: ['FreeText', 'Signature']
-});
+Then copy the iSource.xcodeproj back out into the `lib/` directory to persist it back so that the CI
+server can use it. 
 	</info>
 </plugin>
