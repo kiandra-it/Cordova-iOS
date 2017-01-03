@@ -1,0 +1,22 @@
+{
+  "name": "cordova-ios",
+  "version": "1.0.0",
+  "description": "Cordova Wrapper for PSPDFKit 5.1 for iOS ========================================",
+  "main": "addEmbedded.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kiandra-it/Cordova-iOS.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/kiandra-it/Cordova-iOS/issues"
+  },
+  "homepage": "https://github.com/kiandra-it/Cordova-iOS#readme",
+  "dependencies": {
+    "xcode": "^0.9.1"
+  }
+}

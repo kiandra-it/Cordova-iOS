@@ -48,7 +48,10 @@ http://pspdfkit.com/license.html</license>
 				more information
 		-->
 		<framework src="PSPDFKitPlugin/PSPDFKit.framework" embed="true"/>
+
+		<hook type="after_platform_add" src="hooks/embedframework/addEmbedded.js" />
 		<!-- END: PSPDFKit Resource File -->
+
 
 
 		<framework src="CoreText.framework" />
