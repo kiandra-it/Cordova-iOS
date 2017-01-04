@@ -42,17 +42,10 @@ http://pspdfkit.com/license.html</license>
 		<!-- END: Custom Bobble Head Support -->
 
 		<!-- START: PSPDFKit Resource File -->
-		<!-- 
-			NOTE: While this adds PSDPDFKit to the framework section of xcode, you must manually
-				add it to the xcode project under the embedded binaries section. See info tag for
-				more information
-		-->
-		<framework src="PSPDFKitPlugin/PSPDFKit.framework" embed="true"/>
+		<framework src="PSPDFKitPlugin/PSPDFKit.framework" custom="true" embed="true"/>
 
 		<hook type="after_platform_add" src="addEmbedded.js" />
 		<!-- END: PSPDFKit Resource File -->
-
-
 
 		<framework src="CoreText.framework" />
 		<framework src="QuartzCore.framework" />
@@ -71,15 +64,4 @@ http://pspdfkit.com/license.html</license>
 		<framework src="SystemConfiguration.framework" />
 		<framework src="Accelerate.framework" />
 	</platform>
-	
-	<!-- don't indent the info block, because it will also indent the console output -->
-	<info>
-For this project to be built with CI/Code, you must as the PSPDFKit.framework to the embedded binaries section
-of XCode MANUALLY!
-
-More information here https://git.kiandra.com.au/kiandra-projects/isv-mobile#updating-plugins
-
-Then copy the iSource.xcodeproj back out into the `lib/` directory to persist it back so that the CI
-server can use it. 
-	</info>
 </plugin>
